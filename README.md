@@ -4,30 +4,45 @@ A premium, modern Web3 Marketplace for digital products built with **Next.js 15*
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/aymanelazami/web3-marketplace)
 ![GitHub top language](https://img.shields.io/github/languages/top/aymanelazami/web3-marketplace)
+![License](https://img.shields.io/github/license/aymanelazami/web3-marketplace)
 
 ## 🚀 Key Features
 
 ### 💎 User Experience & Dashboard
-- **Glassmorphic UI**: High-end design with gradients and smooth animations.
-- **SIWE Auth**: Secure "Sign-In with Ethereum" via MetaMask and other providers.
-- **Premium Wallet System**: Manual USDT (ERC-20) deposit detection with QR codes.
-- **VIP Rewards**: Automated tier system (Bronze, Silver, Gold) based on total spend.
-- **Responsive Products**: Grid-based browsing with detailed product views.
+- **Glassmorphic UI**: High-end design with gradients, glassmorphism, and smooth micro-animations.
+- **SIWE Auth**: Secure "Sign-In with Ethereum" via MetaMask and other Web3 providers.
+- **Premium Wallet System**: Manual USDT (ERC-20) deposit detection with scan-to-pay QR codes.
+- **VIP Rewards**: Automated 3-tier system (Bronze, Silver, Gold) based on total spend with custom benefit logic.
+- **Centered Dashboard**: Optimized layout for better visual balance and focus on user assets.
+- **Notifications**: Real-time system notifications for orders, deposits, and account updates.
 
-### 🛠️ Admin & Seller Management
-- **Centralized Admin Panel**: Manage users, products, orders, and system settings.
-- **Order Management**: Detailed views for manual processing and status updates.
-- **Seller Flow**: Dedicated interface for sellers to manage inventory and sales.
-- **Global Settings**: Configure store name, admin wallet, commission rates, and maintenance mode.
-- **Audit Logs**: Transparent tracking of all administrative actions.
+### 🛒 Marketplace & Products
+- **Digital Products**: Support for various digital assets with instant delivery or manual processing.
+- **Product Detail Views**: Rich product pages with images, descriptions, and sufficiency checks ($ balance vs price).
+- **Wishlist & Search**: Allow users to save favorites and find products efficiently.
+- **Flash Sales**: Scheduled discounts and promotional events logic.
+
+### 🛠️ Administration & Management
+- **Centralized Admin Dashboard**: Overview of key metrics (Users, Orders, Revenue) with interactive charts.
+- **Comprehensive User Management**: Create, update, or delete users; manage VIP tiers and credit balances.
+- **Seller Flow**: Dedicated dashboard for sellers to manage their own products, view sales stats, and track commissions.
+- **Order Management**: Detailed order tracking with a "View" modal for deep dives into customer purchases.
+- **Global Settings**: Manage store name, support contact, admin wallet addresses, commission rates, and maintenance mode.
+- **Transaction Ledger**: Transparent system-wide ledger tracking every credit movement (deposits, purchases, refunds).
+- **Audit Logs**: Secure tracking of all administrative actions for accountability.
+
+### 🔗 Affiliates & Marketing
+- **Affiliate Program**: Multi-tier referral system with custom commission rates per code.
+- **Coupon System**: Create and manage discount codes for marketing campaigns.
 
 ## 💻 Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
-- **Styling**: Vanilla CSS (Premium Custom Design)
+- **Framework**: Next.js 15 (App Router, Server Actions)
+- **Styling**: Vanilla CSS (Premium Custom Design Tokens)
 - **Database**: SQLite (Development) / Prisma ORM
-- **Web3 Integrations**: Ethers.js, Wagmi, Viem, SIWE
-- **Utilities**: QRCode.react, Iron Session, Recharts
+- **Web3 Integrations**: Ethers.js, Wagmi, Viem, SIWE (Sign-In with Ethereum)
+- **Charts & Data**: Recharts for administrative analytics
+- **Utilities**: QRCode.react, Iron Session for secure auth sessions
 
 ## 🛠️ Getting Started
 
@@ -65,13 +80,13 @@ A premium, modern Web3 Marketplace for digital products built with **Next.js 15*
 
 5. **Run the Development Server**
    ```bash
-   npm run dev
+   npm run dev -- -p 3001
    ```
 
-The app will be available at [http://localhost:3000](http://localhost:3000).
+The app will be available at [http://localhost:3001](http://localhost:3001).
 
 ## 📄 License
-Custom Project for Educational/Showcase Purposes.
+Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 Built with ❤️ for the Web3 Community.
