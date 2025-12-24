@@ -1,0 +1,468 @@
+// Prisma schema for Web3 Store MVP
+// Using SQLite for local development
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id               String   @id @default(cuid())
+  walletAddress    String   @unique @map("wallet_address")
+  creditBalance    Decimal  @default(0) @map("credit_balance")
+  isAdmin          Boolean  @default(false) @map("is_admin")
+  contactEncrypted String?  @map("contact_encrypted")
+  email            String?
+  vipTier          String   @default("BRONZE") @map("vip_tier") // BRONZE, SILVER, GOLD
+  totalSpent       Decimal  @default(0) @map("total_spent")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sessions            Session[]
+  orders              Order[]
+  ledgerTransactions  LedgerTransaction[]
+  depositIntents      DepositIntent[]
+  refundsReceived     Refund[]            @relation("RefundUser")
+  refundsCreated      Refund[]            @relation("RefundCreatedBy")
+  refundsApproved     Refund[]            @relation("RefundApprovedBy")
+  adminAuditLogs      AdminAuditLog[]
+  reviews             Review[]
+  wishlist            Wishlist[]
+  notifications       Notification[]
+
+  @@index([vipTier])
+  @@map("users")
+}
+
+model AuthNonce {
+  id            String   @id @default(cuid())
+  walletAddress String   @map("wallet_address")
+  nonce         String
+  expiresAt     DateTime @map("expires_at")
+  used          Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // No FK relation - nonce is created before user exists
+  @@index([walletAddress])
+  @@map("auth_nonces")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ============================================
+// PRODUCTS & ORDERS
+// ============================================
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  priceCredits Decimal  @map("price_credits")
+  isActive     Boolean  @default(true) @map("is_active")
+  stock        Int?
+  imageUrl     String?  @map("image_url")
+  category     String?  @default("General")
+  productType  String   @default("digital") @map("product_type") // digital, nft, physical
+  fileUrl      String?  @map("file_url") // For digital product delivery
+  sellerId     String?  @map("seller_id") // If sold by third-party seller
+  // NFT specific fields
+  nftContract  String?  @map("nft_contract")
+  nftTokenId   String?  @map("nft_token_id")
+  nftChain     String?  @map("nft_chain")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  orders  Order[]
+  reviews Review[]
+
+  @@index([category])
+  @@index([productType])
+  @@index([sellerId])
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  productId       String   @map("product_id")
+  quantity        Int      @default(1)
+  totalCredits    Decimal  @map("total_credits")
+  status          String   @default("PENDING")
+  fulfillmentNote String?  @map("fulfillment_note")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id])
+  product Product  @relation(fields: [productId], references: [id])
+  refunds Refund[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+// ============================================
+// LEDGER & PAYMENTS
+// ============================================
+
+model LedgerTransaction {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  type           String   // DEPOSIT, PURCHASE, REFUND, ADJUSTMENT
+  amount         Decimal
+  balanceAfter   Decimal  @map("balance_after")
+  referenceType  String?  @map("reference_type")
+  referenceId    String?  @map("reference_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([idempotencyKey])
+  @@map("ledger_transactions")
+}
+
+model DepositIntent {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  expectedAmount Decimal  @map("expected_amount")
+  status         String   @default("PENDING") // PENDING, DETECTED, CREDITED, EXPIRED, FAILED
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user                 User                  @relation(fields: [userId], references: [id])
+  onchainTransactions  OnchainTransaction[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("deposit_intents")
+}
+
+model OnchainTransaction {
+  id              String    @id @default(cuid())
+  txHash          String    @map("tx_hash")
+  logIndex        Int       @map("log_index")
+  fromAddress     String    @map("from_address")
+  toAddress       String    @map("to_address")
+  amount          Decimal
+  blockNumber     BigInt    @map("block_number")
+  confirmations   Int       @default(0)
+  status          String    @default("PENDING") // PENDING, CONFIRMING, CONFIRMED, REORGED, CREDITED
+  depositIntentId String?   @map("deposit_intent_id")
+  creditedAt      DateTime? @map("credited_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  depositIntent DepositIntent? @relation(fields: [depositIntentId], references: [id])
+
+  @@unique([txHash, logIndex])
+  @@index([fromAddress])
+  @@index([status])
+  @@map("onchain_transactions")
+}
+
+// ============================================
+// REFUNDS
+// ============================================
+
+model Refund {
+  id            String    @id @default(cuid())
+  orderId       String    @map("order_id")
+  userId        String    @map("user_id")
+  amountCredits Decimal   @map("amount_credits")
+  amountUsdt    Decimal   @map("amount_usdt")
+  reason        String
+  status        String    @default("PENDING") // PENDING, APPROVED, PROCESSING, COMPLETED, FAILED
+  txHash        String?   @map("tx_hash")
+  approvedBy    String?   @map("approved_by")
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
+
+  // Relations
+  order          Order @relation(fields: [orderId], references: [id])
+  user           User  @relation("RefundUser", fields: [userId], references: [id])
+  approvedByUser User? @relation("RefundApprovedBy", fields: [approvedBy], references: [id])
+  createdByUser  User  @relation("RefundCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@map("refunds")
+}
+
+// ============================================
+// ADMIN AUDIT LOG
+// ============================================
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminId     String   @map("admin_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  detailsJson String   @map("details_json") // JSON stored as string in SQLite
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  admin User @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_audit_log")
+}
+
+// ============================================
+// COUPON SYSTEM
+// ============================================
+
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  discountType    String    @map("discount_type") // PERCENTAGE, FIXED
+  discountValue   Decimal   @map("discount_value")
+  minOrderAmount  Decimal?  @map("min_order_amount")
+  maxDiscount     Decimal?  @map("max_discount") // For percentage coupons
+  usageLimit      Int?      @map("usage_limit")
+  usageCount      Int       @default(0) @map("usage_count")
+  validFrom       DateTime  @map("valid_from")
+  validUntil      DateTime  @map("valid_until")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  couponUsages CouponUsage[]
+
+  @@index([code])
+  @@map("coupons")
+}
+
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String   @map("coupon_id")
+  userId    String   @map("user_id")
+  orderId   String   @map("order_id")
+  discount  Decimal
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  coupon Coupon @relation(fields: [couponId], references: [id])
+
+  @@unique([couponId, orderId])
+  @@index([userId])
+  @@map("coupon_usages")
+}
+
+// ============================================
+// AFFILIATE SYSTEM
+// ============================================
+
+model AffiliateCode {
+  id             String   @id @default(cuid())
+  userId         String   @unique @map("user_id")
+  code           String   @unique
+  commissionRate Decimal  @default(0.05) @map("commission_rate") // 5% default
+  totalEarnings  Decimal  @default(0) @map("total_earnings")
+  totalReferrals Int      @default(0) @map("total_referrals")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  referrals AffiliateReferral[]
+
+  @@index([code])
+  @@map("affiliate_codes")
+}
+
+model AffiliateReferral {
+  id              String   @id @default(cuid())
+  affiliateCodeId String   @map("affiliate_code_id")
+  referredUserId  String   @map("referred_user_id")
+  orderId         String?  @map("order_id")
+  commission      Decimal  @default(0)
+  status          String   @default("PENDING") // PENDING, CREDITED, EXPIRED
+  createdAt       DateTime @default(now()) @map("created_at")
+  creditedAt      DateTime? @map("credited_at")
+
+  // Relations
+  affiliateCode AffiliateCode @relation(fields: [affiliateCodeId], references: [id])
+
+  @@index([affiliateCodeId])
+  @@index([referredUserId])
+  @@map("affiliate_referrals")
+}
+
+// ============================================
+// REVIEWS & RATINGS
+// ============================================
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  productId String   @map("product_id")
+  rating    Int      // 1-5 stars
+  comment   String?
+  isVisible Boolean  @default(true) @map("is_visible")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId]) // One review per user per product
+  @@index([productId])
+  @@map("reviews")
+}
+
+// ============================================
+// WISHLIST
+// ============================================
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  productId String   @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("wishlist")
+}
+
+// ============================================
+// SELLER SYSTEM
+// ============================================
+
+model Seller {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  storeName       String   @map("store_name")
+  storeDescription String? @map("store_description")
+  logoUrl         String?  @map("logo_url")
+  bannerUrl       String?  @map("banner_url")
+  email           String?
+  website         String?
+  socialLinks     String?  @map("social_links") // JSON stored as string
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, SUSPENDED
+  commissionRate  Decimal  @default(0.025) @map("commission_rate") // 2.5% default
+  totalSales      Decimal  @default(0) @map("total_sales")
+  totalEarnings   Decimal  @default(0) @map("total_earnings")
+  rating          Decimal? @default(0)
+  reviewCount     Int      @default(0) @map("review_count")
+  verifiedAt      DateTime? @map("verified_at")
+  applicationNote String?  @map("application_note")
+  rejectionReason String?  @map("rejection_reason")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([userId])
+  @@map("sellers")
+}
+
+// ============================================
+// FLASH SALES
+// ============================================
+
+model FlashSale {
+  id            String   @id @default(cuid())
+  productId     String   @map("product_id")
+  originalPrice Decimal  @map("original_price")
+  salePrice     Decimal  @map("sale_price")
+  discountPercent Int    @map("discount_percent")
+  startTime     DateTime @map("start_time")
+  endTime       DateTime @map("end_time")
+  maxQuantity   Int?     @map("max_quantity")
+  soldQuantity  Int      @default(0) @map("sold_quantity")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@index([startTime, endTime])
+  @@map("flash_sales")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String   // ORDER, DEPOSIT, PROMO, SYSTEM
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ============================================
+// PAYMENT METHODS
+// ============================================
+
+model PaymentMethod {
+  id             String  @id @default(cuid())
+  currency       String  // ETH, USDT, BTC
+  name           String
+  symbol         String
+  chain          String  // ethereum, bitcoin
+  contractAddress String? @map("contract_address")
+  depositAddress String  @map("deposit_address")
+  decimalPlaces  Int     @default(18) @map("decimal_places")
+  isActive       Boolean @default(true) @map("is_active")
+  usdRate        Decimal? @map("usd_rate") // Current exchange rate
+
+  @@unique([currency, chain])
+  @@map("payment_methods")
+}
+
+// ============================================
+// SETTINGS
+// ============================================
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
